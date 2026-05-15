@@ -87,7 +87,7 @@
             try {
                 await apiCall("/login", "POST", {username, password});
                 document.getElementById("auth-screen").classList.add("hidden");
-                alert("✅ Successfully logged in! Game ready.");
+                alert("✅ Successfully logged in! (Full game UI coming next)");
             } catch (e) {
                 alert("Login failed: " + e.message);
             }

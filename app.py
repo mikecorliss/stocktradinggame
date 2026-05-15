@@ -37,6 +37,7 @@ def init_user_game(user):
             sym: [{"date": "May 14", "price": data["price"]}] for sym, data in user.stocks.items()
         }
 
+# Create tables on startup
 with app.app_context():
     db.create_all()
 
@@ -103,7 +104,7 @@ def index():
         with open("templates/index.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "templates/index.html not found. Please make sure the file exists.", 404
+        return "templates/index.html not found", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
