@@ -33,11 +33,8 @@ def init_user_game(user):
         }
         user.portfolio = {}
         user.day = 0
-        user.price_history = {
-            sym: [{"date": "May 14", "price": data["price"]}] for sym, data in user.stocks.items()
-        }
+        user.price_history = {sym: [{"date": "May 14", "price": data["price"]}] for sym, data in user.stocks.items()}
 
-# Create tables on startup
 with app.app_context():
     db.create_all()
 
@@ -63,12 +60,10 @@ def register():
 
         init_user_game(user)
         session["user_id"] = user.id
-
         return jsonify({"success": True, "username": username})
     except Exception as e:
         db.session.rollback()
-        print("Register error:", str(e))
-        return jsonify({"error": f"Server error: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -104,7 +99,7 @@ def index():
         with open("templates/index.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "templates/index.html not found", 404
+        return "templates/index.html not found. Please make sure the file exists.", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

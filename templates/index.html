@@ -13,18 +13,16 @@
     </style>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
-
-    <!-- Auth Screen -->
     <div id="auth-screen" class="flex items-center justify-center min-h-screen p-6">
         <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
             <h1 class="text-4xl font-bold text-center mb-2">📈 Stock Trader</h1>
-            <p class="text-emerald-400 text-center mb-8">Flask + SQLite + Docker</p>
+            <p class="text-emerald-400 text-center mb-8">Flask + SQLite</p>
 
             <div id="login-form">
                 <h2 class="text-2xl font-semibold mb-6 text-center">Sign In</h2>
                 <input id="login-username" type="text" placeholder="Username" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-4 text-lg">
                 <input id="login-password" type="password" placeholder="Password" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-6 text-lg">
-                <button onclick="login()" class="w-full bg-white text-black py-4 rounded-2xl font-bold text-lg hover:bg-zinc-200">Login</button>
+                <button onclick="login()" class="w-full bg-white text-black py-4 rounded-2xl font-bold text-lg">Login</button>
                 <p onclick="switchToRegister()" class="text-center mt-6 text-zinc-400 cursor-pointer hover:text-white">
                     Don't have an account? <span class="text-emerald-400">Register →</span>
                 </p>
@@ -42,6 +40,16 @@
         </div>
     </div>
 
+    <div id="game-screen" class="hidden max-w-7xl mx-auto p-6">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-bold">📈 Stock Trader</h1>
+            <div>
+                <button onclick="logout()" class="bg-zinc-800 px-4 py-2 rounded-xl">Logout</button>
+            </div>
+        </div>
+        <p class="text-green-400 text-center text-xl">✅ Logged in successfully! Full UI coming soon.</p>
+    </div>
+
     <script>
         async function apiCall(endpoint, method = "GET", body = null) {
             const options = { method, headers: {"Content-Type": "application/json"} };
@@ -49,7 +57,7 @@
             const res = await fetch(`/api${endpoint}`, options);
             if (!res.ok) {
                 const text = await res.text();
-                throw new Error(text || "Request failed");
+                throw new Error(text);
             }
             return res.json();
         }
@@ -87,10 +95,15 @@
             try {
                 await apiCall("/login", "POST", {username, password});
                 document.getElementById("auth-screen").classList.add("hidden");
-                alert("✅ Successfully logged in! (Full game UI coming next)");
+                document.getElementById("game-screen").classList.remove("hidden");
+                alert("✅ Login successful! Game UI ready.");
             } catch (e) {
                 alert("Login failed: " + e.message);
             }
+        }
+
+        function logout() {
+            fetch('/api/logout', {method: 'POST'}).then(() => location.reload());
         }
     </script>
 </body>

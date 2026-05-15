@@ -1,8 +1,8 @@
 # Stock Trading Game
 
-A full-stack stock trading simulation with Flask, SQLite persistence, user authentication, and Docker support.
+Full Flask + SQLite + Docker stock trading simulation with user accounts.
 
-## Quick Start with Docker
+## How to Run
 
 ```bash
 docker build -t stock-trader .
@@ -11,11 +11,4 @@ docker run -p 5000:5000 -v $(pwd)/stockgame.db:/app/stockgame.db stock-trader
 
 Open http://localhost:5000
 
-## Features
-- User registration & login
-- Persistent portfolio across sessions
-- Real-time price simulation
-- Beautiful chart visualization
-- Docker ready
-
-Made with ❤️ using Grok
+Enjoy trading!
