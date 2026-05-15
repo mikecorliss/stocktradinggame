@@ -8,17 +8,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .price-up { color: #22c55e; }
+        .price-down { color: #ef4444; }
         .card { transition: all 0.2s; }
-        .card:hover { transform: translateY(-4px); }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .toast { animation: slideUp 0.3s ease forwards; }
     </style>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
-
     <!-- Auth Screen -->
     <div id="auth-screen" class="flex items-center justify-center min-h-screen p-6">
         <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
             <h1 class="text-4xl font-bold text-center mb-2">📈 Stock Trader</h1>
-            <p class="text-emerald-400 text-center mb-8">Flask + SQLite</p>
+            <p class="text-emerald-400 text-center mb-8">Flask + SQLite + Docker</p>
 
             <div id="login-form">
                 <h2 class="text-2xl font-semibold mb-6 text-center">Sign In</h2>
@@ -42,9 +44,82 @@
         </div>
     </div>
 
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden max-w-7xl mx-auto p-6">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold flex items-center gap-3">📈 Stock Trader</h1>
+                <p class="text-zinc-400">Day <span id="day" class="font-mono">0</span> • <span id="date">May 14, 2026</span></p>
+            </div>
+            <div class="text-right">
+                <div class="text-sm text-zinc-400">Cash</div>
+                <div id="cash" class="text-3xl font-mono font-bold text-emerald-400">$10,000.00</div>
+            </div>
+            <button onclick="logout()" class="bg-zinc-800 hover:bg-zinc-700 px-5 py-2 rounded-2xl">Logout</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Market -->
+            <div class="lg:col-span-2">
+                <div class="bg-zinc-900 rounded-3xl p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold">Market Prices</h2>
+                        <button onclick="nextDay()" class="bg-white text-black px-6 py-3 rounded-2xl font-medium hover:bg-zinc-200 flex items-center gap-2">
+                            Next Day →
+                            <span id="loading" class="hidden animate-spin">⟳</span>
+                        </button>
+                    </div>
+                    <div id="market" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+
+                <!-- Chart -->
+                <div class="bg-zinc-900 rounded-3xl p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold">Price History</h2>
+                        <select id="chartSymbol" onchange="updateChart()" class="bg-zinc-800 px-5 py-3 rounded-2xl text-white">
+                            <option value="all">All Stocks</option>
+                        </select>
+                    </div>
+                    <canvas id="priceChart" class="w-full h-96"></canvas>
+                </div>
+            </div>
+
+            <!-- Portfolio + Trade -->
+            <div>
+                <div class="bg-zinc-900 rounded-3xl p-6 mb-6">
+                    <h2 class="text-2xl font-semibold mb-4">Your Portfolio</h2>
+                    <div id="portfolio" class="space-y-4"></div>
+                    <div class="mt-8 pt-6 border-t border-zinc-700">
+                        <div class="text-sm text-zinc-400">Net Worth</div>
+                        <div id="totalWorth" class="text-4xl font-mono font-bold">$10,000.00</div>
+                    </div>
+                </div>
+
+                <div class="bg-zinc-900 rounded-3xl p-6">
+                    <h2 class="text-2xl font-semibold mb-4">Trade</h2>
+                    <select id="tradeSymbol" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-4"></select>
+                    <input id="sharesInput" type="number" placeholder="Number of shares" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-6 text-center text-2xl font-mono">
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="buyStock()" class="bg-emerald-600 hover:bg-emerald-500 py-5 rounded-3xl font-bold text-xl">BUY</button>
+                        <button onclick="sellStock()" class="bg-rose-600 hover:bg-rose-500 py-5 rounded-3xl font-bold text-xl">SELL</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" onclick="this.classList.add('hidden')" class="hidden fixed bottom-8 right-8 bg-emerald-600 text-white px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-3 text-lg toast">
+        <span id="toast-text"></span>
+    </div>
+
     <script>
+        let currentUser = null;
+        let chartInstance = null;
+        let currentHistory = {};
+        let stocks = {};
+
         async function apiCall(endpoint, method = 'GET', body = null) {
-            const options = { method, headers: {'Content-Type': 'application/json'} };
+            const options = { method, headers: { 'Content-Type': 'application/json' } };
             if (body) options.body = JSON.stringify(body);
             const res = await fetch(`/api${endpoint}`, options);
             if (!res.ok) {
@@ -67,13 +142,13 @@
         async function register() {
             const username = document.getElementById('register-username').value.trim();
             const password = document.getElementById('register-password').value.trim();
-            if (!username || password.length < 6) return alert('Username required, password min 6 chars');
+            if (!username || password.length < 6) return showToast('Username + password min 6 chars', true);
             try {
                 await apiCall('/register', 'POST', {username, password});
-                alert('✅ Account created! Logging in...');
+                showToast('✅ Account created!');
                 await loginUser(username, password);
             } catch (e) {
-                alert('Registration failed: ' + e.message);
+                showToast(e.message, true);
             }
         }
 
@@ -87,11 +162,209 @@
             try {
                 await apiCall('/login', 'POST', {username, password});
                 document.getElementById('auth-screen').classList.add('hidden');
-                alert('✅ Logged in! Game UI is ready.');
+                document.getElementById('game-screen').classList.remove('hidden');
+                await loadGame();
             } catch (e) {
-                alert('Login failed: ' + e.message);
+                showToast(e.message, true);
             }
         }
+
+        async function logout() {
+            await apiCall('/logout', 'POST');
+            location.reload();
+        }
+
+        async function loadGame() {
+            const data = await apiCall('/status');
+            currentUser = data.username;
+            stocks = data.stocks;
+            currentHistory = data.price_history;
+            updateMarketDisplay(data.stocks);
+            updatePortfolio(data.portfolio, data.cash, data.stocks);
+            updateDate(data.day, data.date);
+            populateSymbols(data.stocks);
+            updateChart();
+        }
+
+        function populateSymbols(stocks) {
+            const select = document.getElementById('tradeSymbol');
+            select.innerHTML = '';
+            Object.keys(stocks).forEach(sym => {
+                const opt = document.createElement('option');
+                opt.value = sym;
+                opt.textContent = `${sym} - ${stocks[sym].name}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function updateMarketDisplay(stocks) {
+            const container = document.getElementById('market');
+            container.innerHTML = '';
+            Object.keys(stocks).forEach(sym => {
+                const s = stocks[sym];
+                const div = document.createElement('div');
+                div.className = 'bg-zinc-800 rounded-3xl p-6 card';
+                div.innerHTML = `
+                    <div class="flex justify-between">
+                        <div>
+                            <div class="font-mono text-2xl font-bold">${sym}</div>
+                            <div class="text-zinc-400">${s.name}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-3xl font-mono">$${s.price.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updatePortfolio(portfolio, cash, stocks) {
+            const container = document.getElementById('portfolio');
+            container.innerHTML = '';
+            let total = cash;
+            if (Object.keys(portfolio).length === 0) {
+                container.innerHTML = `<p class="text-zinc-500 italic">No holdings yet.</p>`;
+            } else {
+                Object.keys(portfolio).forEach(sym => {
+                    if (portfolio[sym] > 0) {
+                        const value = portfolio[sym] * stocks[sym].price;
+                        total += value;
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between bg-zinc-800 rounded-3xl p-5';
+                        row.innerHTML = `
+                            <div>
+                                <span class="font-mono font-bold">${sym}</span>
+                                <span class="text-zinc-400 ml-3">${portfolio[sym]} shares</span>
+                            </div>
+                            <div class="font-mono">$${value.toFixed(2)}</div>
+                        `;
+                        container.appendChild(row);
+                    }
+                });
+            }
+            document.getElementById('cash').innerHTML = `$${cash.toFixed(2)}`;
+            document.getElementById('totalWorth').innerHTML = `$${total.toFixed(2)}`;
+        }
+
+        function updateDate(day, dateStr) {
+            document.getElementById('day').textContent = day;
+            document.getElementById('date').textContent = dateStr;
+        }
+
+        async function buyStock() {
+            const symbol = document.getElementById('tradeSymbol').value;
+            const shares = parseInt(document.getElementById('sharesInput').value);
+            if (!shares) return showToast('Enter shares', true);
+            try {
+                await apiCall('/buy', 'POST', {symbol, shares});
+                showToast(`✅ Bought ${shares} ${symbol}`);
+                await refreshGameState();
+            } catch (e) {
+                showToast(e.message, true);
+            }
+        }
+
+        async function sellStock() {
+            const symbol = document.getElementById('tradeSymbol').value;
+            const shares = parseInt(document.getElementById('sharesInput').value);
+            if (!shares) return showToast('Enter shares', true);
+            try {
+                await apiCall('/sell', 'POST', {symbol, shares});
+                showToast(`✅ Sold ${shares} ${symbol}`);
+                await refreshGameState();
+            } catch (e) {
+                showToast(e.message, true);
+            }
+        }
+
+        async function nextDay() {
+            const btn = document.querySelector('button[onclick="nextDay()"]');
+            const loading = document.getElementById('loading');
+            btn.disabled = true;
+            loading.classList.remove('hidden');
+            try {
+                await apiCall('/next_day', 'POST');
+                showToast('⏭️ Advanced to next day');
+                await refreshGameState();
+            } catch (e) {
+                showToast(e.message, true);
+            } finally {
+                btn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        }
+
+        async function refreshGameState() {
+            const data = await apiCall('/status');
+            currentHistory = data.price_history;
+            updateMarketDisplay(data.stocks);
+            updatePortfolio(data.portfolio, data.cash, data.stocks);
+            updateDate(data.day, data.date);
+            updateChart();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('priceChart');
+            const symbol = document.getElementById('chartSymbol').value;
+            if (chartInstance) chartInstance.destroy();
+            const labels = currentHistory['AAPL'] ? currentHistory['AAPL'].map(p => p.date) : [];
+            let datasets = [];
+            if (symbol === 'all') {
+                const colors = ['#22d3ee', '#a78bfa', '#f472b6', '#fbbf24', '#4ade80'];
+                let i = 0;
+                Object.keys(currentHistory).forEach(sym => {
+                    datasets.push({
+                        label: sym,
+                        data: currentHistory[sym].map(p => p.price),
+                        borderColor: colors[i % colors.length],
+                        tension: 0.3,
+                        borderWidth: 3
+                    });
+                    i++;
+                });
+            } else if (currentHistory[symbol]) {
+                datasets.push({
+                    label: symbol,
+                    data: currentHistory[symbol].map(p => p.price),
+                    borderColor: '#22d3ee',
+                    tension: 0.4,
+                    borderWidth: 5
+                });
+            }
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#ddd' } } },
+                    scales: {
+                        y: { grid: { color: '#3f3f46' }, ticks: { color: '#aaa' } },
+                        x: { grid: { color: '#3f3f46' }, ticks: { color: '#aaa' } }
+                    }
+                }
+            });
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').innerHTML = msg;
+            toast.style.backgroundColor = isError ? '#ef4444' : '#10b981';
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 4000);
+        }
+
+        window.onload = async () => {
+            try {
+                const data = await apiCall('/status');
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+                await loadGame();
+            } catch (e) {
+                // Not logged in, show auth screen
+            }
+        };
     </script>
 </body>
 </html>
