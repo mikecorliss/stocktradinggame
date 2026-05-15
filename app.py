@@ -60,10 +60,12 @@ def register():
 
         init_user_game(user)
         session["user_id"] = user.id
+
         return jsonify({"success": True, "username": username})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        print("Register error:", str(e))
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 @app.route("/api/login", methods=["POST"])
 def login():
