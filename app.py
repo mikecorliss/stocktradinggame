@@ -3,11 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import random
 from datetime import date, timedelta
-import yfinance as yf
-import json
+import os
 
 app = Flask(__name__)
-app.secret_key = 'stock-trader-2026-secret'
+app.secret_key = 'stock-trader-2026-super-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stockgame.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -37,36 +36,64 @@ def init_user_game(user):
         user.day = 0
         user.price_history = {sym: [{'date': 'May 14', 'price': data['price']}] for sym, data in user.stocks.items()}
 
-def update_prices(user):
-    for sym in user.stocks:
-        try:
-            ticker = yf.Ticker(sym)
-            data = ticker.history(period='1d')
-            if not data.empty:
-                current_price = round(data['Close'].iloc[-1], 2)
-                user.stocks[sym]['price'] = current_price
-            else:
-                user.stocks[sym]['price'] *= (1 + random.uniform(-0.03, 0.03))
-        except:
-            user.stocks[sym]['price'] *= (1 + random.uniform(-0.03, 0.03))
-        user.stocks[sym]['price'] = max(1.0, round(user.stocks[sym]['price'], 2))
+with app.app_context():
+    db.create_all()
 
-    date_str = (date.fromisoformat(user.start_date) + timedelta(days=user.day)).strftime('%b %d')
-    for sym in user.stocks:
-        if sym not in user.price_history:
-            user.price_history[sym] = []
-        user.price_history[sym].append({'date': date_str, 'price': user.stocks[sym]['price']})
+@app.route('/api/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json(force=True)
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        if not username or len(password) < 6:
+            return jsonify({'error': 'Username required and password must be at least 6 characters'}), 400
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': 'Username already taken'}), 400
+        user = User(username=username, password_hash=generate_password_hash(password))
+        db.session.add(user)
+        db.session.commit()
+        init_user_game(user)
+        session['user_id'] = user.id
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/leaderboard', methods=['GET'])
-def leaderboard():
-    users = User.query.all()
-    data = []
-    for u in users:
-        net = u.cash + sum(shares * u.stocks.get(sym, {'price':0})['price'] for sym, shares in u.portfolio.items())
-        data.append({'username': u.username, 'net_worth': round(net, 2)})
-    data.sort(key=lambda x: x['net_worth'], reverse=True)
-    return jsonify(data[:10])
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json(force=True)
+        user = User.query.filter_by(username=data.get('username')).first()
+        if user and check_password_hash(user.password_hash, data.get('password')):
+            session['user_id'] = user.id
+            return jsonify({'success': True})
+        return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# (other routes for register, login, status, buy, sell, next_day with yfinance update)
-# Full code abbreviated for tool call
-print('App ready with yfinance and leaderboard')
+@app.route('/api/status', methods=['GET'])
+def status():
+    user_id = session.get('user_id')
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({'error': 'Not logged in'}), 401
+    return jsonify({
+        'username': user.username,
+        'cash': user.cash,
+        'portfolio': user.portfolio,
+        'stocks': user.stocks,
+        'day': user.day,
+        'date': 'May 14, 2026',
+        'price_history': user.price_history
+    })
+
+@app.route('/')
+def index():
+    try:
+        with open('templates/index.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return 'templates/index.html not found', 404
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

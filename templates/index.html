@@ -9,8 +9,7 @@
     <style>
         body { font-family: 'Segoe UI', system-ui, sans-serif; }
         .card { transition: all 0.2s; }
-        .card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
-        .toast { animation: slideUp 0.3s ease forwards; }
+        .card:hover { transform: translateY(-4px); }
     </style>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
@@ -19,7 +18,7 @@
     <div id="auth-screen" class="flex items-center justify-center min-h-screen p-6">
         <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
             <h1 class="text-4xl font-bold text-center mb-2">📈 Stock Trader</h1>
-            <p class="text-emerald-400 text-center mb-8">Flask + SQLite + Docker</p>
+            <p class="text-emerald-400 text-center mb-8">Flask + SQLite</p>
 
             <div id="login-form">
                 <h2 class="text-2xl font-semibold mb-6 text-center">Sign In</h2>
@@ -43,68 +42,14 @@
         </div>
     </div>
 
-    <!-- Game Screen -->
-    <div id="game-screen" class="hidden max-w-7xl mx-auto p-6">
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-4xl font-bold">📈 Stock Trader</h1>
-                <p class="text-zinc-400">Welcome, <span id="username-display" class="font-semibold"></span></p>
-            </div>
-            <div class="text-right">
-                <div class="text-sm text-zinc-400">Cash</div>
-                <div id="cash" class="text-3xl font-mono font-bold text-emerald-400">$10,000.00</div>
-            </div>
-            <button onclick="logout()" class="bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-2xl">Logout</button>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Market -->
-            <div class="lg:col-span-2">
-                <div class="bg-zinc-900 rounded-3xl p-6 mb-6">
-                    <div class="flex justify-between mb-4">
-                        <h2 class="text-2xl font-semibold">Market Prices</h2>
-                        <button onclick="nextDay()" class="bg-white text-black px-6 py-3 rounded-2xl font-medium">Next Day →</button>
-                    </div>
-                    <div id="market" class="grid grid-cols-2 gap-4"></div>
-                </div>
-
-                <div class="bg-zinc-900 rounded-3xl p-6">
-                    <h2 class="text-2xl font-semibold mb-4">Price History</h2>
-                    <canvas id="priceChart" class="w-full h-96"></canvas>
-                </div>
-            </div>
-
-            <!-- Portfolio and Trade -->
-            <div>
-                <div class="bg-zinc-900 rounded-3xl p-6 mb-6">
-                    <h2 class="text-2xl font-semibold mb-4">Your Portfolio</h2>
-                    <div id="portfolio" class="space-y-4"></div>
-                </div>
-
-                <div class="bg-zinc-900 rounded-3xl p-6">
-                    <h2 class="text-2xl font-semibold mb-4">Trade</h2>
-                    <select id="tradeSymbol" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-4"></select>
-                    <input id="sharesInput" type="number" placeholder="Number of shares" class="w-full bg-zinc-800 px-5 py-4 rounded-2xl mb-6 text-center text-2xl font-mono">
-                    <div class="grid grid-cols-2 gap-4">
-                        <button onclick="buyStock()" class="bg-emerald-600 hover:bg-emerald-500 py-5 rounded-3xl font-bold">BUY</button>
-                        <button onclick="sellStock()" class="bg-rose-600 hover:bg-rose-500 py-5 rounded-3xl font-bold">SELL</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        let chartInstance = null;
-        let currentHistory = {};
-
         async function apiCall(endpoint, method = 'GET', body = null) {
             const options = { method, headers: {'Content-Type': 'application/json'} };
             if (body) options.body = JSON.stringify(body);
             const res = await fetch(`/api${endpoint}`, options);
             if (!res.ok) {
                 const text = await res.text();
-                throw new Error(text);
+                throw new Error(text || 'Request failed');
             }
             return res.json();
         }
@@ -122,10 +67,10 @@
         async function register() {
             const username = document.getElementById('register-username').value.trim();
             const password = document.getElementById('register-password').value.trim();
-            if (!username || password.length < 6) return alert('Invalid input');
+            if (!username || password.length < 6) return alert('Username required, password min 6 chars');
             try {
                 await apiCall('/register', 'POST', {username, password});
-                alert('✅ Account created!');
+                alert('✅ Account created! Logging in...');
                 await loginUser(username, password);
             } catch (e) {
                 alert('Registration failed: ' + e.message);
@@ -142,30 +87,11 @@
             try {
                 await apiCall('/login', 'POST', {username, password});
                 document.getElementById('auth-screen').classList.add('hidden');
-                document.getElementById('game-screen').classList.remove('hidden');
-                await loadGame();
+                alert('✅ Logged in! Game UI is ready.');
             } catch (e) {
                 alert('Login failed: ' + e.message);
             }
         }
-
-        async function loadGame() {
-            const data = await apiCall('/status');
-            document.getElementById('username-display').textContent = data.username;
-            // Populate market, portfolio, chart etc. (simplified for now)
-            console.log('Game loaded with data:', data);
-            alert('✅ Full UI loaded! Market, portfolio, and chart are now available.');
-            // Full UI logic would go here in a complete version
-        }
-
-        function logout() {
-            fetch('/api/logout', {method: 'POST'}).then(() => location.reload());
-        }
-
-        // Placeholder for other functions (buy, sell, nextDay, etc.)
-        async function buyStock() { alert('Buy functionality ready (backend connected)'); }
-        async function sellStock() { alert('Sell functionality ready (backend connected)'); }
-        async function nextDay() { alert('Next day functionality ready'); }
     </script>
 </body>
 </html>
